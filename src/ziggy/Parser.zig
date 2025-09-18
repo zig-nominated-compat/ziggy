@@ -44,7 +44,7 @@ pub const FrontmatterError = error{
     /// Could not find a closing frontmatter framing delimiter.
     OpenFrontmatter,
 };
-pub const Error = Diagnostic.Error.ZigError || FrontmatterError;
+pub const Error = Diagnostic.Error.ZigError || FrontmatterError || error{NotImplemented};
 const Container = enum {
     start,
     @"struct",
@@ -132,11 +132,11 @@ pub fn parseValue(
 
     switch (info) {
         .pointer => |ptr| switch (ptr.size) {
-            .slice => switch (ptr.child) {
+            .Slice => switch (ptr.child) {
                 u8 => return self.parseBytes(T, first_tok),
                 else => return self.parseArray(T, first_tok),
             },
-            .one => {
+            .One => {
                 const v: T = try self.gpa.create(ptr.child);
                 errdefer self.gpa.destroy(v);
 
@@ -174,7 +174,9 @@ pub fn parseValue(
                 return try self.parseValue(opt.child, first_tok);
             }
         },
-        else => @compileError("TODO"),
+        else => {
+            return error.NotImplemented;
+        },
     }
 }
 
@@ -403,7 +405,7 @@ fn finalizeStruct(
 ) Error!void {
     inline for (info.fields, 0..) |field, idx| {
         if (fields_seen[idx] == null) {
-            if (field.default_value_ptr) |ptr| {
+            if (field.default_value) |ptr| {
                 const dv_ptr: *const field.type = @ptrCast(@alignCast(ptr));
                 @field(val, field.name) = dv_ptr.*;
             } else {
@@ -459,19 +461,19 @@ pub fn parseBytes(self: *Parser, comptime T: type, token: Token) !T {
             return self.mustUnescape(str);
         },
         .line_string => {
-            var str: std.ArrayList(u8) = .empty;
-            errdefer str.deinit(self.gpa);
+            var str = std.ArrayList(u8).init(self.gpa);
+            errdefer str.deinit();
 
             var current = token;
             while (current.tag == .line_string) {
-                try str.appendSlice(self.gpa, current.loc.src(self.code)[2..]);
+                try str.appendSlice(current.loc.src(self.code)[2..]);
 
                 if (self.peek().tag != .line_string) break;
 
-                try str.append(self.gpa, '\n');
+                try str.append('\n');
                 current = self.next();
             }
-            return str.toOwnedSlice(self.gpa);
+            return str.toOwnedSlice();
         },
         else => unreachable,
     }
@@ -479,7 +481,7 @@ pub fn parseBytes(self: *Parser, comptime T: type, token: Token) !T {
 
 fn parseArray(self: *Parser, comptime T: type, lsb: Token) !T {
     const info = @typeInfo(T).pointer;
-    assert(info.size == .slice);
+    assert(info.size == .Slice);
 
     try self.must(lsb, .lsb);
 

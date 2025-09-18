@@ -23,7 +23,7 @@ const Writer = std.Io.Writer;
 
 pub const Tree = struct {
     tag: Tree.Tag,
-    children: std.ArrayList(Child) = .{},
+    children: std.ArrayList(Child),
     suggestions: []const Suggestion = &.{},
     hovers: []const Hover = &.{},
 
@@ -598,7 +598,7 @@ pub const TreeFmt = struct {
                 // tag_string '@' and identifier
                 if (i == 0 or
                     (tfmt.tree.children.items[i - 1] == .token and
-                        tfmt.tree.children.items[i - 1].token.tag != .at))
+                    tfmt.tree.children.items[i - 1].token.tag != .at))
                     try writer.writeByte(' ');
             },
             .comment, .top_comment_line => {
@@ -625,7 +625,7 @@ pub const TreeFmt = struct {
                         i + 1 < tfmt.tree.children.items.len and
                         tfmt.tree.children.items[i + 1] == .token and
                         (tfmt.tree.children.items[i + 1].token.tag == .rsb or
-                            tfmt.tree.children.items[i + 1].token.tag == .rb);
+                        tfmt.tree.children.items[i + 1].token.tag == .rb);
                     const new_indent = (indent -| @intFromBool(unindent)) * 4;
                     try writer.splatByteAll(' ', new_indent);
                 } else if (tfmt.tree.tag == .top_level_struct) {
@@ -671,9 +671,9 @@ pub const TreeFmt = struct {
 
                     const _has_trailing_comma = is_container and
                         if (mlast_child) |last_child|
-                            last_child == .token and last_child.token.tag == .comma
-                        else
-                            false;
+                        last_child == .token and last_child.token.tag == .comma
+                    else
+                        false;
 
                     const additional_indent = @intFromBool(_has_trailing_comma);
                     const sub_tfmt = TreeFmt{
@@ -1618,7 +1618,7 @@ test "misc" {
 test "line string" {
     try expectFmtEql(
         \\{
-        \\    "extended_description": 
+        \\    "extended_description":
         \\        \\Lorem ipsum dolor something something,
         \\        \\this is a multiline string literal.
         \\        ,
@@ -1642,7 +1642,7 @@ test "invalid" {
     try expectFmt(".a = 1 .b = 2", ".a = 1.b = 2");
     try expectFmt(".a = ; ", ".a = (invalid)");
     try expectFmt(
-        \\["a "b"] 
+        \\["a "b"]
     ,
         \\["a "b (invalid)
     );
@@ -1665,7 +1665,7 @@ test "nested named structs" {
         \\        .url = "arst",
         \\        .hash = "wfp",
         \\    },
-        \\}, 
+        \\},
     );
 
     try expectFmtEql(
@@ -1687,14 +1687,14 @@ test "nested named structs" {
         \\        .url = "arst",
         \\        .hash = "wfp",
         \\    },
-        \\    "baz": 
-        \\        \\Lorem Ipsum is simply dummy text of 
-        \\        \\the printing and typesetting industry. 
+        \\    "baz":
+        \\        \\Lorem Ipsum is simply dummy text of
+        \\        \\the printing and typesetting industry.
         \\        \\
-        \\        \\Lorem Ipsum has been the industry's standard 
-        \\        \\dummy text ever since the 1500s, when an 
-        \\        \\unknown printer took a galley of type and 
-        \\        \\scrambled it to make a type specimen book. 
+        \\        \\Lorem Ipsum has been the industry's standard
+        \\        \\dummy text ever since the 1500s, when an
+        \\        \\unknown printer took a galley of type and
+        \\        \\scrambled it to make a type specimen book.
         \\        ,
         \\},
         \\
@@ -1719,7 +1719,7 @@ test "maps" {
         \\
     );
     try expectFmtEql(
-        \\{"asdfa": }, 
+        \\{"asdfa": },
     );
 }
 

@@ -7,7 +7,6 @@ const Diagnostic = @import("Diagnostic.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const Rule = ziggy.schema.Schema.Rule;
-const Writer = std.Io.Writer;
 
 const log = std.log.scoped(.ziggy_ast);
 
@@ -837,13 +836,21 @@ fn typeMismatch(
     });
 }
 
-pub fn format(self: Ast, out_stream: *Writer) !void {
+pub fn format(
+    self: Ast,
+    comptime fmt: []const u8,
+    options: std.fmt.FormatOptions,
+    out_stream: anytype,
+) !void {
+    _ = fmt;
+    _ = options;
+
     try render(self.nodes, self.code, out_stream);
 }
 
 const RenderMode = enum { horizontal, vertical };
 const ContainerLayout = enum { @"struct", map };
-pub fn render(nodes: []const Node, code: [:0]const u8, w: *Writer) Writer.Error!void {
+pub fn render(nodes: []const Node, code: [:0]const u8, w: anytype) !void {
     var value_idx: u32 = 1;
     if (value_idx >= nodes.len) return; // skip empty files
     var value = nodes[value_idx];
@@ -878,8 +885,8 @@ fn renderValue(
     nodes: []const Node,
     code: [:0]const u8,
     is_top_value: bool,
-    w: *Writer,
-) Writer.Error!void {
+    w: anytype,
+) !void {
     switch (node.tag) {
         .root => return,
         .braceless_struct => {
@@ -1033,7 +1040,7 @@ fn renderValue(
     }
 }
 
-fn printIndent(indent: usize, w: *Writer) !void {
+fn printIndent(indent: usize, w: anytype) !void {
     for (0..indent) |_| try w.writeAll("    ");
 }
 
@@ -1056,7 +1063,7 @@ fn printComments(
     node: Node,
     nodes: []const Node,
     code: [:0]const u8,
-    w: *Writer,
+    w: anytype,
 ) !?Node {
     std.debug.assert(node.tag == .comment);
 
@@ -1081,7 +1088,7 @@ fn renderArray(
     idx: u32,
     nodes: []const Node,
     code: [:0]const u8,
-    w: *Writer,
+    w: anytype,
 ) !void {
     var seen_values = false;
     var maybe_value: ?Node = nodes[idx];
@@ -1129,7 +1136,7 @@ fn renderFields(
     idx: u32,
     nodes: []const Node,
     code: [:0]const u8,
-    w: *Writer,
+    w: anytype,
 ) !void {
     assert(idx != 0);
     var seen_fields = false;

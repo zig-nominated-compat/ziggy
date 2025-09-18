@@ -5,7 +5,6 @@ const Parser = @import("Parser.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const serializer = @import("serializer.zig");
-const Writer = std.Io.Writer;
 
 pub const Value = union(enum) {
     kv: Map(Value),
@@ -25,7 +24,7 @@ pub const Value = union(enum) {
             opts: serializer.StringifyOptions,
             indent_level: usize,
             depth: usize,
-            writer: *Writer,
+            writer: anytype,
         ) !void {
             switch (value) {
                 .bytes => |b| try writer.print("\"{}\"", .{std.zig.fmtEscapes(b)}),
@@ -231,7 +230,7 @@ pub fn Map(comptime T: type) type {
                 opts: serializer.StringifyOptions,
                 indent_level: usize,
                 depth: usize,
-                writer: *Writer,
+                writer: anytype,
             ) !void {
                 const omit_curly = opts.omit_top_level_curly and depth == 0;
                 const indent = if (omit_curly) indent_level else indent_level + 1;
@@ -318,7 +317,7 @@ test "basics 2" {
     const case =
         \\{
         \\   "foo": "bar",
-        \\   "bar": "baz",    
+        \\   "bar": "baz",
         \\}
     ;
 
@@ -406,7 +405,7 @@ test "map + union stringify" {
                         opts: serializer.StringifyOptions,
                         indent_level: usize,
                         depth: usize,
-                        writer: *Writer,
+                        writer: anytype,
                     ) !void {
                         const omit_curly = opts.omit_top_level_curly and depth == 0;
                         const indent = if (omit_curly) indent_level else indent_level + 1;
@@ -473,9 +472,9 @@ test "map + union stringify" {
         .name = "zine",
         .dependencies = deps,
     };
-    var out: Writer.Allocating = .init(std.testing.allocator);
-    defer out.deinit();
+    var output = std.ArrayList(u8).init(std.testing.allocator);
+    defer output.deinit();
 
-    try serializer.stringify(proj, .{ .whitespace = .space_4 }, &out.writer);
-    try std.testing.expectEqualStrings(case, out.written());
+    try serializer.stringify(proj, .{ .whitespace = .space_4 }, output.writer());
+    try std.testing.expectEqualStrings(case, output.items);
 }

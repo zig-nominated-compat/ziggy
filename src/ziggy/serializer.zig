@@ -1,5 +1,4 @@
 const std = @import("std");
-const Writer = std.Io.Writer;
 
 const log = std.log.scoped(.serizalizer);
 
@@ -18,15 +17,11 @@ pub const StringifyOptions = struct {
     };
 };
 
-pub fn stringify(value: anytype, opts: StringifyOptions, writer: *Writer) !void {
+pub fn stringify(value: anytype, opts: StringifyOptions, writer: anytype) !void {
     try stringifyInner(value, opts, 0, 0, writer);
 }
 
-pub fn indent(
-    kind: StringifyOptions.Whitespace,
-    level: usize,
-    writer: *Writer,
-) !void {
+pub fn indent(kind: StringifyOptions.Whitespace, level: usize, writer: anytype) !void {
     var char: u8 = ' ';
     const n_chars = level * switch (kind) {
         .minified => return,
@@ -40,7 +35,7 @@ pub fn indent(
         },
     };
     try writer.writeAll("\n");
-    try writer.splatByteAll(char, n_chars);
+    try writer.writeByteNTimes(char, n_chars);
 }
 
 pub fn stringifyInner(
@@ -48,8 +43,8 @@ pub fn stringifyInner(
     opts: StringifyOptions,
     indent_level: usize,
     depth: usize,
-    writer: *Writer,
-) Writer.Error!void {
+    writer: anytype,
+) !void {
     const T = @TypeOf(value);
     switch (@typeInfo(T)) {
         .bool,
@@ -61,7 +56,7 @@ pub fn stringifyInner(
 
         .pointer => |ptr| {
             switch (ptr.size) {
-                .slice => {
+                .Slice => {
                     switch (ptr.child) {
                         u8 => try escapeString(
                             writer,
@@ -78,7 +73,7 @@ pub fn stringifyInner(
                         ),
                     }
                 },
-                .one => try stringifyInner(value.*, opts, indent_level, depth, writer),
+                .One => try stringifyInner(value.*, opts, indent_level, depth, writer),
 
                 else => @compileError("Expected a slice or single pointer. Got a many/C pointer '" ++ @typeName(T) ++ "'"),
             }
@@ -127,7 +122,7 @@ pub fn stringifyInner(
     }
 }
 
-fn escapeString(writer: *Writer, str: []const u8, indent_level: usize, indent_kind: StringifyOptions.Whitespace) !void {
+fn escapeString(writer: anytype, str: []const u8, indent_level: usize, indent_kind: StringifyOptions.Whitespace) !void {
     if (indent_kind != .minified) {
         if (std.mem.indexOfScalar(u8, str, '\n')) |_| {
             var lines = std.mem.splitScalar(u8, str, '\n');
@@ -137,14 +132,14 @@ fn escapeString(writer: *Writer, str: []const u8, indent_level: usize, indent_ki
                 try indent(indent_kind, indent_level, writer);
             }
         } else {
-            try writer.print("\"{f}\"", .{std.zig.fmtString(str)});
+            try writer.print("\"{}\"", .{std.zig.fmtEscapes(str)});
         }
     } else {
-        try writer.print("\"{f}\"", .{std.zig.fmtString(str)});
+        try writer.print("\"{}\"", .{std.zig.fmtEscapes(str)});
     }
 }
 
-fn stringifyArray(writer: *Writer, array: anytype, indent_level: usize, depth: usize, opts: StringifyOptions) !void {
+fn stringifyArray(writer: anytype, array: anytype, indent_level: usize, depth: usize, opts: StringifyOptions) !void {
     try writer.writeAll("[");
     switch (opts.whitespace) {
         // no final comma + spaces
@@ -170,7 +165,7 @@ fn stringifyArray(writer: *Writer, array: anytype, indent_level: usize, depth: u
     try writer.writeAll("]");
 }
 
-fn stringifyStruct(writer: *Writer, strct: anytype, indent_level: usize, depth: usize, opts: StringifyOptions) !void {
+fn stringifyStruct(writer: anytype, strct: anytype, indent_level: usize, depth: usize, opts: StringifyOptions) !void {
     const omit_curly = opts.omit_top_level_curly and depth == 0;
     if (omit_curly) {
         _ = try stringifyStructInner(writer, strct, indent_level, depth, opts);
@@ -183,7 +178,7 @@ fn stringifyStruct(writer: *Writer, strct: anytype, indent_level: usize, depth: 
 }
 
 fn stringifyStructInner(
-    writer: *Writer,
+    writer: anytype,
     strct: anytype,
     indent_level: usize,
     depth: usize,
@@ -281,7 +276,7 @@ fn stringifyStructInner(
     return field_count > 0;
 }
 
-fn stringifyUnion(writer: *Writer, un: anytype, indent_level: usize, depth: usize, opts: StringifyOptions) !void {
+fn stringifyUnion(writer: anytype, un: anytype, indent_level: usize, depth: usize, opts: StringifyOptions) !void {
     const T = @typeInfo(@TypeOf(un)).@"union";
     if (T.tag_type == null) @compileError("Union '" ++ @typeName(@TypeOf(un)) ++ "' must be tagged!");
     var opts_ = opts;
@@ -297,7 +292,7 @@ fn stringifyUnion(writer: *Writer, un: anytype, indent_level: usize, depth: usiz
                     const value_field: std.builtin.Type.StructField = .{
                         .name = "value",
                         .type = field.type,
-                        .default_value_ptr = null,
+                        .default_value = null,
                         .is_comptime = false,
                         .alignment = @alignOf(field.type),
                     };
@@ -316,15 +311,12 @@ fn stringifyUnion(writer: *Writer, un: anytype, indent_level: usize, depth: usiz
 }
 
 fn testStringify(value: anytype, opts: StringifyOptions, expected_output: []const u8) !void {
-    var output_buffer: std.ArrayList(u8) = .empty;
-    defer output_buffer.deinit(std.testing.allocator);
+    var output_buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer output_buffer.deinit();
 
-    var out: Writer.Allocating = .init(std.testing.allocator);
-    defer out.deinit();
+    try stringify(value, opts, output_buffer.writer());
 
-    try stringify(value, opts, &out.writer);
-
-    try std.testing.expectEqualStrings(expected_output, out.written());
+    try std.testing.expectEqualStrings(expected_output, output_buffer.items);
 }
 
 test "basic data types" {

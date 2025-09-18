@@ -3,7 +3,6 @@ const Diagnostic = @This();
 const std = @import("std");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
-const Writer = std.Io.Writer;
 
 /// A path to the file, used to display diagnostics.
 /// If not present, error positions will be printed as "line: XX col: XX".
@@ -122,7 +121,7 @@ pub const Error = union(enum) {
 
         pub fn format(
             err_fmt: ErrorFmt,
-            out_stream: *Writer,
+            out_stream: anytype,
         ) !void {
             const lsp = err_fmt.mode == .lsp;
 
@@ -285,7 +284,7 @@ pub const Formatter = struct {
 
     pub fn format(
         self: Formatter,
-        out_stream: *Writer,
+        out_stream: anytype,
     ) !void {
         for (self.diag.errors.items) |e| {
             try e.fmt(.cli, self.src, self.diag.path).format(out_stream);
